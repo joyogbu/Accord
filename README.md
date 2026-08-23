@@ -1,16 +1,59 @@
-# React + Vite
+# Accord: Intelligent Escrow for Verifiable Agreements
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Accord is a consensus-driven escrow primitive built with GenLayer for agreements whose fulfillment cannot be determined by simple deterministic on-chain conditions.
 
-Currently, two official plugins are available:
+It enables a customer to create an order, a merchant to accept the order and form an agreement, and the customer to fund an escrow. Once the merchant completes the work, evidence is submitted to the Intelligent Contract. GenLayer validators evaluate the evidence against the agreement requirements and reach a consensus decision that determines whether the escrow should be released to the merchant or refunded to the customer.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## The Problem
 
-## React Compiler
+Traditional smart contracts are effective when fulfillment can be expressed through deterministic conditions.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+For example:
 
-## Expanding the ESLint configuration
+- A payment was received.
+- A deadline has passed.
+- A signature is valid.
+- A balance is sufficient.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+However, many real-world agreements contain requirements that are semantic and cannot be evaluated through simple on-chain logic.
+
+For example:
+
+> "Build a responsive landing page with five sections, a contact form, and deploy it publicly."
+
+A conventional smart contract cannot independently determine whether the submitted work satisfies those requirements.
+
+Accord uses GenLayer's Intelligent Contract capabilities to make this type of agreement enforceable through validator consensus.
+
+## How Accord Works
+
+The lifecycle of an Accord agreement is:
+
+```text
+Customer creates order
+        ↓
+Order becomes available
+        ↓
+Merchant accepts order
+        ↓
+Agreement is created
+        ↓
+Customer funds escrow
+        ↓
+Merchant performs work
+        ↓
+Merchant submits evidence
+        ↓
+GenLayer validators evaluate evidence
+        ↓
+Consensus decision
+        ↓
+   ┌───────────────┐
+   │               │
+Satisfied      Not satisfied
+   │               │
+   ↓               ↓
+Release          Refund
+   │               │
+   ↓               ↓
+Merchant         Customer
