@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useWallet } from '../hooks/useWallet';
-import { FaArrowRight, FaHistory, FaFileContract, FaCheck, FaMoneyBill, FaDollarSign, FaLock } from 'react-icons/fa';
+import { FaArrowRight, FaFileContract, FaCheck, FaMoneyBill, FaLock } from 'react-icons/fa';
 import { agreementExists } from "../lib/genlayer";
 import ConnectWallet from "../components/ConnectWallet.jsx";
 import Footer from '../components/Footer.jsx';
@@ -75,7 +75,7 @@ function Home() {
                     <a href="#">Docs</a>
                 </div>
                 <div className="landing_menu start_here nav_actions">
-                    <div className="btn_flex"><button className="menu_start" onClick={showModal}>Log In</button></div>
+                    <div className="btn_flex"><button className="menu_start">Log In</button><span className="flex_arrow"><FaArrowRight /></span></div>
 
 			        <div className="landing_menu_bar">
                         <button className="landing_menu_btn" onClick={toggle}>☰</button>
@@ -98,7 +98,7 @@ function Home() {
                     {isModal && <ConnectWallet closeModal = {closeModal} />}
                 </div>
                 <br />
-                <small className="footnote">Work &bull; Verify &bull; Pay</small>
+                <small>Work &bull; Verify &bull; Pay</small>
             </div>
             <br />
             <div id="how-it-works">
@@ -129,7 +129,7 @@ function Home() {
                 <div className="landing_feature">
                     <br />
                     <div className="feature_img img_3">
-                        <FaHistory />
+                        <img className="feature_image" src="#" />
                     </div>
                     
                     <h3 className="heading_3 text_chaange_b">Complete the Work</h3>
@@ -151,7 +151,7 @@ function Home() {
                 <div className="landing_feature">
                     <br />
                     <div className="feature_img img_5">
-                       <FaDollarSign />
+                       <FaMoneyBill />
                     </div>
                     
                     <h3 className="heading_3 text_chaange_b">Settle Payment Automatically</h3>
@@ -162,8 +162,8 @@ function Home() {
             <br />
         
             <div id="content_section">
-                <h2 className="why">BUILT FOR PERFORMANCE-BASED WORK.</h2>
-                <h2 className="how_b">What it means</h2>
+                <h2>BUILT FOR PERFORMANCE-BASED WORK.</h2>
+                <h2>What it means</h2>
 
                 <div id="for_customers">
                     <h2>For Customers</h2>
@@ -196,8 +196,10 @@ function Home() {
             </div>
             <br />
             <div className="closing_cta">
-                <h4 className="feature_text">Create a performance-based agreement, secure the payment, and let intelligent verification handle the settlement.</h4>
-               
+                <h2>From smart contracts to contracts that can evaluate work, turn agreements into outcomes.</h2>
+
+                <p className="feature_text">Create a performance-based agreement, secure the payment, and let intelligent verification handle the settlement.</p>
+                <br />
                 <p><button className="closing_btn" type="button" onClick={showModal}>Create Your First Agreement</button></p>
             </div>
             

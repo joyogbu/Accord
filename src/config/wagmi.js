@@ -6,7 +6,9 @@ export const wagmiConfig = createConfig({
   chains: [genlayerStudionet],
 
   connectors: [
-    injected(),
+    injected({
+        target: 'metaMask',
+    }),
   ],
 
   transports: {

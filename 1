@@ -1,0 +1,79 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "../lib/supabase";
+import { useUser } from "../hooks/UserContext";
+
+function UserRole() {
+    const [role, setRole] = useState("");
+    const navigate = useNavigate();
+    const { user, setUser } = useUser();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    async function handleSubmit(e) {
+        e.preventDefault();
+
+        if (!user) {
+            navigate("/");
+            return;
+        }
+
+        if (!role) {
+            setError("Please select how you want to use Accord.");
+            return;
+        }
+
+        setLoading(true);
+        setError("");
+
+        const { data, error } = await supabase
+            .from("users")
+            .update({ role })
+            .eq("user_id", user.user_id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error(error);
+            setError("Failed to save your role.");
+            setLoading(false);
+            return;
+        }
+
+        setUser(data);
+        navigate("/dashboard");
+    }
+
+    return (
+        <div className="modal_overlay">
+
+            <div className="modal_box">
+
+                <h2>How will you use Accord?</h2>
+
+                <h3>
+                    Choose how you want to use your account.
+                </h3>
+
+                <p>user: {user?.user_id}</p>
+                <form className="role_form" onSubmit={handleSubmit}>
+                    <input type="radio" value="CUSTOMER" name="role" checked={role === "CUSTOMER"} onChange={(e) => setRole(e.target.value)} />
+                    <label><strong>I need a service</strong></label><br />
+                    <small>Create orders and find merchants to complete your work.</small>
+                    <br />
+                    <br />
+                    <input type="radio" value="MERCHANT" name="role" checked={role === "MERCHANT"} onChange={(e) => setRole(e.target.value)} />
+                    <label><strong>I provide services</strong></label><br />
+                    <small>Browse available orders and accept work from customers</small>
+                    <br /><br />
+                    <button type="submit" className="continue_btn">Continue</button>
+                    {error && <p className="form_error">{error}</p>}
+                    <br />
+                </form>
+
+            </div>
+
+        </div>
+    );
+}
+export default UserRole;

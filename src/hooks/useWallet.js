@@ -19,7 +19,9 @@ export function useWallet() {
     try {
       if (!isConnected) {
         await connectAsync({
-          connector: injected(),
+          connector: injected({
+            target: 'metaMask',
+          }),
         });
       }
 
@@ -29,7 +31,8 @@ export function useWallet() {
         });
       }
     } catch (error) {
-      console.error('Wallet connection failed:', error);
+        console.error('Wallet connection failed:', error);
+        throw error;
     }
   }
 
