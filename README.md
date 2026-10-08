@@ -12,6 +12,26 @@ A customer funds an agreement with native **GEN**, a merchant completes the work
 
 ---
 
+## Deployed Contract
+
+The Accord smart contract is located in [`contracts/Accord.py`](contracts/Accord.py).
+
+The contract handles:
+- Agreement creation
+- GEN escrow
+- Evidence submission
+- GenLayer evidence verification
+- Escrow release/refunds
+- Deadline-based refunds
+
+Deployed on GenLayer Studionet:
+
+GenLayer Contract address: `0x53D56887875538D06bA0584c9b083B297a7eb8Db`
+
+Explorer: [View Contract](https://explorer-studio.genlayer.com/address/0x53D56887875538D06bA0584c9b083B297a7eb8Db)
+
+---
+
 ## Table of Contents
 
 - [Overview](#overview)
@@ -246,9 +266,7 @@ or:
 https://
 ```
 
-Evidence submission does **not** automatically trigger verification.
-
-The frontend explicitly initiates verification.
+Evidence submission does automatically triggers verification, and if verification is interrupted, merchant can re-initiate verification from frontend.
 
 ---
 

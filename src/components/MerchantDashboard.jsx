@@ -241,7 +241,7 @@ function DashboardBody() {
                                 ) : agreement?.status === "EXPIRED" ? (
                                     <p className="_expired order_status">&bull; Expired</p>
                                 ) : agreement?.status === "EVIDENCE_SUBMITTED" ? (
-                                    <p className="_pending order_status">&bull; Verification in progress</p>
+                                    <><p className="_pending order_status">&bull; Verification in progress</p><button className="action_button check_status" type="button" onClick={() => navigate(`/submit-work/${agreement.agreement_id}`) }>Check Status</button></>
                                 ) : agreement?.status === "FUNDED" && deadlinePassed(agreement?.deadline) ? (
                                     <p className="_expired order_status">&bull; Expired</p>
                                 ): agreement?.status === "FUNDED" ? (

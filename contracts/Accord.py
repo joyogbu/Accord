@@ -5,6 +5,7 @@
 from genlayer import *
 from dataclasses import dataclass
 import json
+from datetime import datetime, timezone
 
 #Interface used to send native GEN from the contract
 # to an external recipient address.
@@ -15,7 +16,6 @@ class _Recipient:
 
     class Write:
         pass
-
 
 #helper function for gen_to_wei
 def gen_to_wei(amount: str) -> u256:
@@ -35,6 +35,11 @@ def gen_to_wei(amount: str) -> u256:
         u256(int(whole)) * u256(10**18)
         + u256(int(decimal))
     )
+
+# Helper function to check for deadline
+def _deadline_passed(agreement) -> bool:
+    now = int(datetime.now(timezone.utc).timestamp())
+    return now > agreement.deadline
 
 #Stores the complete state of an agreement and its escrow.
 @allow_storage
@@ -73,6 +78,9 @@ class Accord(gl.Contract):
     # Persistent agreement storage
     agreements: TreeMap[str, Agreement]
 
+    # Maps order ID (payment_reference) to agreement ID
+    order_agreements: TreeMap[str, str]
+
     # Persistent evidence storage
     # One evidence record per agreement for now.
     evidence: TreeMap[str, str]
@@ -110,9 +118,28 @@ class Accord(gl.Contract):
                 "Agreement already exists"
             )
 
+        if payment_reference == "":
+            raise gl.vm.UserError(
+                "Payment reference is required"
+            )
+
+        if payment_reference in self.order_agreements:
+            raise gl.vm.UserError(
+                "An agreement already exists for this order"
+            )
+
         amount_wei = gen_to_wei(amount)        
         payer_address = Address(payer)
         merchant_address = Address(merchant)
+
+        now = u64(
+            int(datetime.now(timezone.utc).timestamp())
+        )
+
+        if deadline <= now:
+            raise gl.vm.UserError(
+                "Agreement deadline must be in the future"
+            )
 
         # Only the merchant specified in the agreement
         # is allowed to create it.
@@ -166,7 +193,11 @@ class Accord(gl.Contract):
             verified=False
         )
 
+        # Store agreement by agreement ID
         self.agreements[agreement_id] = agreement
+
+        # Store the order → agreement relationship.
+        self.order_agreements[payment_reference] = agreement_id
 
     # =========================================================
     # FUND ESCROW
@@ -191,9 +222,14 @@ class Accord(gl.Contract):
                 "Only the payer can fund the escrow"
             )
 
+        if _deadline_passed(agreement):
+            raise gl.vm.UserError(
+                "The agreement deadline has passed"
+            )
+
         if agreement.status != "CREATED":
             raise gl.vm.UserError(
-                "Agreement is not available for funding"
+                "Agreement is not available for funding in its present state"
             )
 
         if agreement.escrow_status != "UNFUNDED":
@@ -223,7 +259,7 @@ class Accord(gl.Contract):
     def submit_evidence(
         self,
         agreement_id: str,
-        evidence_text: str
+        evidence_url: str
     ) -> None:
 
         if agreement_id not in self.agreements:
@@ -238,21 +274,46 @@ class Accord(gl.Contract):
                 "Only the merchant can submit evidence"
             )
 
-        if agreement.status != "FUNDED":
+        if not (
+            agreement.status == "FUNDED"
+            or (
+                agreement.status == "EVIDENCE_SUBMITTED"
+                and agreement.verification_result == "RETRY"
+            )
+        ):
             raise gl.vm.UserError(
-                "Agreement must be funded before evidence is submitted"
+                "Evidence cannot be submitted in the current agreement state"
             )
 
-        if evidence_text == "":
+        if _deadline_passed(agreement):
             raise gl.vm.UserError(
-                "Evidence cannot be empty"
+                "The agreement deadline has passed"
             )
+
+        if evidence_url == "":
+            raise gl.vm.UserError(
+                "Evidence URL cannot be empty"
+            )
+
+        if not (
+            evidence_url.startswith("https://")
+            or evidence_url.startswith("http://")
+        ):
+            raise gl.vm.UserError(
+                "Evidence must be a valid HTTP or HTTPS URL"
+            )
+
 
         # Store the submitted evidence.
         # This will later be evaluated by verify_agreement().
-        self.evidence[agreement_id] = evidence_text
+        self.evidence[agreement_id] = evidence_url
 
         agreement.status = "EVIDENCE_SUBMITTED"
+
+        # Reset verification state for the new evidence.
+        agreement.verification_result = "PENDING"
+        agreement.verification_reason = ""
+        agreement.verified = False
 
         self.agreements[agreement_id] = agreement
     
@@ -395,47 +456,88 @@ class Accord(gl.Contract):
             agreement
         )
 
-        evidence_text = self.evidence[agreement_id]
-
-        prompt = f"""
-You are an independent agreement verification judge.
-
-Determine whether the submitted evidence demonstrates that
-the merchant fulfilled the agreed requirements.
-
-AGREEMENT DESCRIPTION:
-{memory_agreement.description}
-
-AGREED REQUIREMENTS:
-{memory_agreement.requirements}
-
-SUBMITTED EVIDENCE:
-{evidence_text}
-
-Return ONLY valid JSON in exactly this format:
-
-{{
-    "fulfilled": true,
-    "reason": "short explanation"
-}}
-
-Rules:
-
-1. "fulfilled" must be true only when the evidence reasonably
-   demonstrates that the agreed requirements were satisfied.
-
-2. If important requirements are missing, unclear, contradicted,
-   or unsupported by the evidence, return false.
-
-3. Do not invent facts that are not contained in the agreement
-   or evidence.
-
-4. Base the decision on the agreed requirements.
-
-5. The amount of the agreement must not influence the decision.
-"""
+        evidence_url = self.evidence[agreement_id]
 
         def evaluate():
+
+            web_content = None
+
+            # Attempt evidence retrieval up to 3 times.
+            for attempt in range(2):
+
+                try:
+                    web_content = gl.nondet.web.render(
+                        evidence_url,
+                        mode="text"
+                    )
+
+                    if web_content:
+                        break
+
+                except Exception:
+                    web_content = None
+
+
+            # Retrieval failure is NOT a rejection.
+            if not web_content:
+                return {
+                    "retrieval_ok": False,
+                    "fulfilled": False,
+                    "reason": (
+                        "The submitted deliverable could not be "
+                        "retrieved after 2 attempts."
+                    )
+                }    
+
+            prompt = f"""
+    You are an independent agreement verification judge.
+
+    Determine whether the submitted evidence demonstrates that
+    the merchant fulfilled the agreed requirements.
+
+    AGREEMENT DESCRIPTION:
+    {memory_agreement.description}
+
+    AGREED REQUIREMENTS:
+    {memory_agreement.requirements}
+
+    DELIVERABLE URL:
+    {evidence_url}
+
+    RETRIEVED DELIVERABLE CONTENT:
+    {web_content}
+
+    Evaluate the actual retrieved content against the requirements.
+    
+    Return ONLY valid JSON in exactly this format:
+
+    {{
+        "retrieval_ok": true,
+        "fulfilled": true,
+        "reason": "short explanation"
+    }}
+
+    Rules:
+
+    1. "retrieval_ok" must be true because the deliverable was
+   successfully retrieved.
+
+
+    2. "fulfilled" must be true only when the retrieved deliverable
+    reasonably demonstrates that the agreed requirements were satisfied.
+
+    3. Do not rely on claims made by the merchant outside
+   the retrieved deliverable.
+
+    4. Do not invent functionality or facts that are not
+   present in the retrieved content.
+
+    5. Compare the actual deliverable against the agreed
+   requirements.
+
+    6. The agreement amount must not influence the decision.
+    """
+
             response = gl.nondet.exec_prompt(
                 prompt,
                 response_format="json"
@@ -447,13 +549,35 @@ Rules:
         result = gl.eq_principle.prompt_comparative(
             evaluate,
             principle="""
-The "fulfilled" decision must be exactly the same.
 
-Independent evaluators must determine whether the submitted
-evidence satisfies the agreement requirements.
+The verification decision must be based on the independently
+retrieved deliverable, not on claims supplied by the merchant.
 
-The reason may differ in wording, but the final "fulfilled"
-decision must agree.
+Each evaluator must independently retrieve and evaluate
+the submitted deliverable against the agreement
+requirements.
+
+The result must distinguish between:
+
+1. successful retrieval with fulfillment,
+2. successful retrieval without fulfillment,
+3. retrieval failure.
+
+A retrieval failure is NOT a rejection
+
+If the deliverable cannot be retrieved or the retrieval
+operation temporarily fails, the evaluator must return
+retrieval_ok=false.
+
+A retrieval failure must never cause the agreement to be
+marked REJECTED or cause the escrow to be refunded.
+
+The fulfilled decision must agree across independent
+evaluations when the deliverable is successfully retrieved.
+
+The explanation may differ in wording, but retrieval failure
+must remain retryable.
+
 """
         )
 
@@ -461,6 +585,11 @@ decision must agree.
             raise gl.vm.UserError(
                 "Consensus returned an invalid verification result"
             )
+
+        retrieval_ok = result.get(
+            "retrieval_ok",
+            False
+        )
 
         fulfilled = result.get(
             "fulfilled",
@@ -471,6 +600,31 @@ decision must agree.
             "reason",
             ""
         )
+
+        # RETRYABLE RETRIEVAL FAILURE
+
+        if not retrieval_ok:
+
+            agreement.status = "EVIDENCE_SUBMITTED"
+
+            agreement.verification_result = "RETRY"
+
+            agreement.verification_reason = (
+                reason
+                if reason
+                else (
+                    "Evidence could not be retrieved. "
+                    "Verification can be retried."
+                )
+            )
+
+            agreement.verified = False
+
+            self.agreements[agreement_id] = agreement
+
+            return
+
+        # VERIFIED AS FULFILLED
 
         if fulfilled:
 
@@ -484,27 +638,27 @@ decision must agree.
 
             self.agreements[agreement_id] = agreement
 
-            # Contract internally releases the escrow
+            # Contract internally releases the escrow to the merchant
             self.release_escrow(agreement_id)
 
             return
 
-        else:
+        # VERIFIED AS NOT FULFILLED
 
-            agreement.status = "REJECTED"
+        agreement.status = "REJECTED"
 
-            agreement.verification_result = "REJECTED"
+        agreement.verification_result = "REJECTED"
 
-            agreement.verified = False
+        agreement.verified = False
 
-            agreement.verification_reason = reason
+        agreement.verification_reason = reason
 
-            self.agreements[agreement_id] = agreement
+        self.agreements[agreement_id] = agreement
 
-            # Contract internally refunds the escrow
-            self.refund_escrow(agreement_id)
+        # Contract internally refunds the escrow
+        self.refund_escrow(agreement_id)
 
-            return
+        return
 
     # =========================================================
     # RELEASE ESCROW
@@ -558,6 +712,51 @@ decision must agree.
 
         self.agreements[agreement_id] = agreement
 
+
+    # =========================================================
+    # REFUND AFTER DEADLINE EXPIRY
+    # =========================================================
+        
+    @gl.public.write
+    def refund_after_deadline(
+        self,
+        agreement_id: str
+    ) -> None:
+
+        if agreement_id not in self.agreements:
+            raise gl.vm.UserError(
+                "Agreement does not exist"
+            )
+
+        agreement = self.agreements[agreement_id]
+
+        if gl.message.sender_address != agreement.payer:
+            raise gl.vm.UserError(
+                "Only the payer can claim a deadline refund"
+            )
+
+        if agreement.escrow_status != "FUNDED":
+            raise gl.vm.UserError(
+                "Escrow is not available for refund"
+            )
+        
+        if not _deadline_passed(agreement):
+            raise gl.vm.UserError(
+                "Agreement deadline has not passed"
+            )
+
+        agreement.status = "EXPIRED"
+        agreement.verification_result = "EXPIRED"
+        agreement.verification_reason = (
+            "Merchant did not submit evidence before the deadline."
+        )
+
+        self.agreements[agreement_id] = agreement
+
+        self.refund_escrow(agreement_id)
+
+
+
     # =========================================================
     # REFUND ESCROW
     # =========================================================
@@ -579,9 +778,9 @@ decision must agree.
         # Refunds are allowed after verification rejects
         # the agreement, or when a funded agreement is
         # cancelled by the merchant.
-        if agreement.status not in ["REJECTED", "FUNDED"]:
+        if agreement.status not in ["REJECTED", "FUNDED", "EXPIRED"]:
             raise gl.vm.UserError(
-                "Agreement has not been rejected by verification"
+                "Agreement is not eligible for refund"
             )
 
         # Prevent a second refund of the same escrow.

@@ -19,6 +19,7 @@ function Submission() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [canResumeVerification, setCanResumeVerification] = useState(false);
+    const [checkStatus, setCheckStatus] = useState(false);
 
     const [isVerifying, setIsVerifying] = useState(false);
 
@@ -27,6 +28,9 @@ function Submission() {
     const [error, setError] = useState("");
     const [message, setMessage] = useState("");
     const [verifyMessage, setVerifyMessage] = useState("");
+
+    const [contractVerification, setContractVerification] = useState(null);
+    const [isCheckingVerification, setIsCheckingVerification] = useState(false);
 
     const {agreementId} = useParams();
     console.log("agreement id", agreementId);
@@ -47,11 +51,11 @@ function Submission() {
 
     // Load the agreement for submission
     useEffect(() => {
-        if(!user) {
+        /*if(!user) {
             navigate("/");
-        }
+        }*/
         if(user?.role !== "MERCHANT") {
-            navigate("/");
+            return;
         }
         async function loadAgreement() {
             try {
@@ -99,15 +103,27 @@ function Submission() {
 
         async function checkVerificationStatus() {
             const agreement = await getAgreement(agreementId);
+            const result = agreement?.verification_result;
 
             if (agreement?.status === "EVIDENCE_SUBMITTED" && agreement?.verification_result === "") {
+                console.log("Yes, can resume verification");
                 setCanResumeVerification(true);
+            } else {
+                console.log("No, cannot resume verification", agreement?.status);
+                if (result === "FULFILLED" || result === "REJECTED" || result === "RETRY") {
+                    setContractVerification({
+                        result,
+                        reason: agreement.verification_reason || "",
+                    });
+                    setCheckStatus(true);
+                }
             }
+
         }
 
         if (agreementId) {
             loadSubmission();
-            checkVerificationStatus;
+            checkVerificationStatus();
         }
     }, [agreementId]);
 
@@ -210,6 +226,58 @@ function Submission() {
     };
 
 
+    // Update database if verification completed but update failed
+    const handleDatabaseUpdate = async () => {
+            try {
+                setIsCheckingVerification(true);
+                setError("");
+
+                if (!contractVerification) {
+                    setError("Verification result is unavailable.");
+                    return;
+                }
+                const { result, reason } = contractVerification;
+                const { error: updateError } = await supabase.rpc(
+                    "update_verification",
+                    {
+                        p_agreement_id: agreementId,
+                        p_evidence_id: submissionId,
+                        p_verification_hash: null,
+                        p_result: result,
+                        p_reason: reason,
+                        p_status:
+                            result === "FULFILLED"
+                                ? "FULFILLED"
+                                : result === "REJECTED"
+                                    ? "REJECTED"
+                                    : "EVIDENCE_SUBMITTED",
+                    }
+                );
+
+                if (updateError) {
+                    console.error("Failed to update verification:", updateError);
+                    setError("Failed to update verification.");
+                    return;
+                }
+
+                setCheckStatus(false);
+                if (result === "FULFILLED") {
+                    setVerifyMessage("Work verified successfully, and escrow released");
+                } else if (result === "REJECTED") {
+                    setError(reason || "Verification failed.");
+                } else {
+                    setError(reason || "Verification needs to be retried.");
+                }
+            } catch (err) {
+                console.error("Check verification failed:", err);
+                setError(err?.message || "Failed to update verification.");
+            } finally {
+                setIsCheckingVerification(false);
+            }
+        };
+
+
+        
     const handleSubmitEvidence = async () => {
         console.log("Evidence URL:", evidenceUrl);
 
@@ -395,12 +463,23 @@ function Submission() {
                                 <button type="button" onClick={updateVerification} >Update database</button>*/}
                                 {canResumeVerification && (
                                     <div className="warning_div">
-                                    <span className="warning_sign">⚠️ </span> <small>Evidence was submitted, but verification could not be confirmed... </small><br />
+                                    <span className="warning_sign">⚠️ </span> <small>Evidence has already been submitted for this agreement, but verification could not be confirmed... </small><br />
                                     <button type="button" className="resume_btn" onClick={handleResumeVerification} disabled={isVerifying}>
                                     {isVerifying ? "Verifying..." : "Resume Verification"}
                                     </button>
                                     </div>
                                 )}
+
+
+                            {/*{setCheckStatus && (
+                                    <div className="warning_div">
+                                    <span className="warning_sign">⚠️ </span> <small>Evidence was already submitted for this agreement, but verification could not be confirmed... </small><br />
+                                    <button type="button" className="resume_btn" onClick={handleDatabaseUpdate} disabled={isCheckingVerification}>
+                                    {isCheckingVerification ? "Checking..." : "Check Status"}
+                                    </button>
+                                    </div>
+                                )}*/}
+
 
                             </form>
                         </div>
