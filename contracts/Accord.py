@@ -735,6 +735,12 @@ must remain retryable.
                 "Only the payer can claim a deadline refund"
             )
 
+
+        if agreement.status != "FUNDED":
+            raise gl.vm.UserError(
+                "Deadline refund is only available while the agreement is FUNDED"
+            )
+
         if agreement.escrow_status != "FUNDED":
             raise gl.vm.UserError(
                 "Escrow is not available for refund"
@@ -805,7 +811,7 @@ must remain retryable.
 
         # Mark the escrow as refunded so it cannot be refunded again.
         agreement.escrow_status = "REFUNDED"
-        agreement.status = "REFUNDED"
+        # agreement.status = "REFUNDED"
 
         self.agreements[agreement_id] = agreement
 
