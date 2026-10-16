@@ -107,7 +107,7 @@ function ConnectWallet({ closeModal }) {
                 {isError && <p className="form_error">{isError}</p>}
                 <br />
                 <br />
-                <small className="modal_text">Please use metamask for now</small>
+                <small className="modal_text">Please connect your wallet.</small>
             </div>
         </div>
     );
