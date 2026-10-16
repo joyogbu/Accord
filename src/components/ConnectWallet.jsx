@@ -11,7 +11,7 @@ function ConnectWallet({ closeModal }) {
     const [isError, setIsError] = useState("");
 
     const navigate = useNavigate();
-    const {handleConnect, address, isConnected, disconnect, chainId, } = useWallet();
+    const {handleConnect, connectors, address, isConnected, disconnect, chainId, } = useWallet();
     const { setUser } = useUser();
 
     console.log("Supabase URL:", import.meta.env.VITE_SUPABASE_URL);
@@ -62,7 +62,45 @@ function ConnectWallet({ closeModal }) {
                 
                 <h2 className="modal_text_heading">Welcome to Accord</h2>
                 <p className="modal_text">Please connect your wallet, and choose a role to begin</p>
-                <button type="button" id="wallet_connect" onClick={handleConnect}>Connect Wallet</button>
+                {/*<button type="button" id="wallet_connect" onClick={handleConnect}>Connect Wallet</button>*/}
+
+
+                <div className="wallet_options">
+  {connectors
+      .filter((connector) =>
+            ["injected", "metaMask", "walletConnect", "coinbaseWallet"].includes(
+                connector.id
+            )
+        )
+      .map((connector) => (
+    <button
+      className="connector_button"
+      type="button"
+      id={`wallet_${connector.id}`}
+      key={connector.uid}
+      onClick={async () => {
+        setIsError('');
+
+        try {
+          await handleConnect(connector);
+        } catch (error) {
+          setIsError(
+            error?.shortMessage ||
+            error?.message ||
+            'Unable to connect wallet.'
+          );
+        }
+      }}
+    >
+      {connector.id === "walletConnect"
+    ? "Connect WalletConnect"
+    : connector.id === "coinbaseWallet"
+    ? "Connect Coinbase Wallet"
+    : "Connect MetaMask"}
+    </button>
+  ))}
+</div>
+
 
                
              

@@ -10,8 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@coinbase/wallet-sdk": "^4.4.0",
     "@supabase/supabase-js": "^2.109.0",
     "@tanstack/react-query": "^5.101.4",
+    "@walletconnect/ethereum-provider": "^2.26.0",
     "genlayer-js": "^1.1.8",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

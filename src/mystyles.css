@@ -395,13 +395,14 @@ body {
 	border-radius:22px;
 	background:white;
 	width:95%;
-    
+    overflow-y: auto;
+    overflow-x: hidden;   
     max-height:90vh;
-   
+    max-height: 90vh;
 	padding:10%;
 	
     z-index:99999;
-    overflow-x: auto;
+    
 }
 .close_modal {
     border:none;
@@ -427,6 +428,65 @@ body {
     transition: transform 0.1s ease, box-shadow 0.1s ease;
     box-shadow: 0 4px 0 white;
 }
+.connector_button {
+    border: 1px solid lightgrey;
+    background: white;
+    border-radius: 12px;
+    padding:5%;
+    width:100%;
+    margin-top:10px;
+}
+
+.wallet_options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 24px;
+}
+.wallet_options button {
+    width: 100%;
+    min-height: 54px;
+    padding: 14px 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 1px solid #dbe3ef;
+    border-radius: 14px;
+    background: #ffffff;
+    color: #172033;
+    font-size: 15px;
+    font-weight: 650;
+    cursor: pointer;
+    transition: background 0.2s ease,
+                border-color 0.2s ease,
+                transform 0.15s ease,
+                box-shadow 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.wallet_options button:hover {
+    background: #f5f8ff;
+    border-color: #93b4ff;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
+}
+
+.wallet_options button:active {
+    transform: scale(0.98);
+    box-shadow: none;
+}
+
+.wallet_options button:focus-visible,
+.close_modal:focus-visible {
+    outline: 3px solid #93c5fd;
+    outline-offset: 3px;
+}
+
+.wallet_options button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+
 #wallet_connect:active, .continue_btn:active, .create_order_btn:active, .cancel_btn:active {
     transform: translateY(4px);
     box-shadow: 0 0 0 white;
